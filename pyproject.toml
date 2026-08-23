@@ -1,0 +1,17 @@
+[project]
+name = "reddit_firehose_tool"
+version = "0.1.0"
+description = "Tools for polling Reddit for new comments and posts in specific sub-reddits."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "s3-data-tool @ git+https://github.com/ComplexData-MILA/data-lake-pipeline@7983135cfa8a6db14ef0c34c7139eb9b54599e54",
+]
+
+[dependency-groups]
+dev = ["pytest>=9.0.3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
