@@ -1,0 +1,32 @@
+# Reddit firehose author enrichment daemon (reddit-authors entity dataset).
+#
+# Install:
+#   cp deploy/authors.service ~/.config/systemd/user/authors.service   # or /etc/systemd/system/
+#   # set User= to the real account and adjust paths
+#   systemctl --user daemon-reload && systemctl --user enable --now authors
+#
+# Deployment order: run a one-time catch-up pass first
+#   uv run python authors.py --once --max-fetch 10000
+# then start the service.
+#
+# Notes:
+# - The .env file is plain KEY=VALUE (systemd EnvironmentFile format).
+# - SIGTERM does not release the S3 lock gracefully; the lock's TTL (1 h by
+#   default) covers it, and the S3 author index makes restarts idempotent.
+
+[Unit]
+Description=Reddit firehose author profile enrichment (reddit-authors dataset)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=CHANGE_ME
+WorkingDirectory=/home/mila/j/jacob-junqi.tian/20260823-reddit-firehose
+EnvironmentFile=/home/mila/j/jacob-junqi.tian/20260823-reddit-firehose/.env
+ExecStart=/home/mila/j/jacob-junqi.tian/20260823-reddit-firehose/.venv/bin/python authors.py --poll-interval-seconds 300
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

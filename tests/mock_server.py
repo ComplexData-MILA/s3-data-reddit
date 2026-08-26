@@ -36,14 +36,46 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_error(404)
                     return
                 payload = json.loads(path.read_text(encoding="utf-8"))
-            body = json.dumps(payload).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+        elif len(parts) == 2 and parts[0] == "api" and parts[1] == "info":
+            # Backfill smoke tests: return the example_data children whose
+            # fullnames were requested; unknown names are omitted (simulating
+            # deleted/removed items).
+            requested = set(parse_qs(parsed.query).get("id", [""])[0].split(","))
+            children = []
+            for filename in ("new.json", "comments.json"):
+                path = EXAMPLES / filename
+                if not path.exists():
+                    continue
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                for child in payload["data"]["children"]:
+                    if child["data"].get("name") in requested:
+                        children.append(child)
+            payload = {
+                "kind": "Listing",
+                "data": {"after": None, "dist": len(children), "children": children},
+            }
+        elif len(parts) == 3 and parts[0] == "user" and parts[2] == "about":
+            # Author-enrichment smoke tests: serve the example profile for any
+            # username; "suspended_user" simulates a 404 (suspended/deleted).
+            if parts[1] == "suspended_user":
+                self.send_error(404)
+                return
+            path = EXAMPLES / "about.json"
+            if not path.exists():
+                self.send_error(404)
+                return
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["data"]["name"] = parts[1]
         else:
             self.send_error(404)
+            return
+
+        body = json.dumps(payload).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def log_message(self, *args):  # keep smoke-test output clean
         pass

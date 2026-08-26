@@ -1,0 +1,33 @@
+# Reddit firehose daily backfill daemon (posts + parent comments).
+#
+# Install:
+#   cp deploy/backfill.service ~/.config/systemd/user/backfill.service   # or /etc/systemd/system/
+#   # set User= to the real account and adjust paths
+#   systemctl --user daemon-reload && systemctl --user enable --now backfill
+#
+# Deployment order: run a one-time historical pass first
+#   uv run python backfill.py --once --full --max-fetch 1000
+# then start the daily service.
+#
+# Notes:
+# - The .env file is plain KEY=VALUE (systemd EnvironmentFile format).
+# - SIGTERM does not release the S3 lock gracefully; the lock's TTL (1 h by
+#   default) covers it, and the daily completion marker makes restarts skip
+#   already-finished days.
+
+[Unit]
+Description=Reddit firehose daily backfill (posts and parent comments)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=CHANGE_ME
+WorkingDirectory=/home/mila/j/jacob-junqi.tian/20260823-reddit-firehose
+EnvironmentFile=/home/mila/j/jacob-junqi.tian/20260823-reddit-firehose/.env
+ExecStart=/home/mila/j/jacob-junqi.tian/20260823-reddit-firehose/.venv/bin/python backfill.py --run-at 03:00 --window-hours 48
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
