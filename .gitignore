@@ -15,4 +15,7 @@ wheels/
 # Secrets and local state
 .env
 reddit_firehose_state.json
+reddit_firehose_backfill_state.json
+reddit_firehose_authors_state.json
+author_profiles_cache.jsonl
 *.corrupt

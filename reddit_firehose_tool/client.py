@@ -8,6 +8,7 @@ import logging
 import random
 import time
 from collections import deque
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
@@ -82,6 +83,57 @@ class RedditClient:
             params["after"] = after
 
         response = await self._request(url, params=params)
+        return self._parse_listing(response)
+
+    async def get_info(self, fullnames: Sequence[str]) -> list[dict[str, Any]]:
+        """Fetch posts/comments by fullname via GET /api/info.
+
+        Accepts mixed t3_/t1_ fullnames (Reddit handles both). Deleted or
+        removed items are silently omitted from the response, so the returned
+        list may be shorter than ``fullnames`` — that is not an error.
+        """
+        if not fullnames:
+            return []
+        if len(fullnames) > 100:
+            raise ValueError("at most 100 fullnames per /api/info request")
+        url = f"{self._base_url}/api/info"
+        params: dict[str, Any] = {"id": ",".join(fullnames), "raw_json": 1}
+        response = await self._request(url, params=params)
+        return self._parse_listing(response).children
+
+    async def get_user_about(self, username: str) -> dict | None:
+        """Fetch a user's profile via GET /user/{username}/about.
+
+        Returns the ``data`` dict on 200, or None on 404 (suspended / deleted /
+        nonexistent account). Raises RedditAPIError on other failures.
+        """
+        url = f"{self._base_url}/user/{username}/about"
+        response = await self._request(url, params={"raw_json": 1})
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise RedditAPIError(
+                response.status_code,
+                f"user about request failed (HTTP {response.status_code})",
+                response.headers,
+            )
+        try:
+            payload = response.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise RedditAPIError(
+                response.status_code, "user about body was not valid JSON", response.headers
+            ) from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("data"), dict):
+            raise RedditAPIError(
+                response.status_code,
+                "unexpected payload shape (not a t2 account)",
+                response.headers,
+            )
+        return payload["data"]
+
+    @staticmethod
+    def _parse_listing(response: httpx.Response) -> Page:
+        """Parse a Listing envelope (shared by get_listing and get_info)."""
         try:
             payload = response.json()
         except (json.JSONDecodeError, ValueError) as exc:
